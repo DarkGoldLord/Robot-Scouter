@@ -8,12 +8,14 @@ import android.view.MenuItem
 import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
+import androidx.annotation.CallSuper
 import androidx.annotation.StringRes
 import androidx.fragment.app.FragmentActivity
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import androidx.transition.AutoTransition
 import androidx.transition.TransitionManager
+import androidx.vectordrawable.graphics.drawable.AnimatedVectorDrawableCompat
 import com.github.rubensousa.gravitysnaphelper.GravitySnapHelper
 import com.google.android.material.snackbar.BaseTransientBottomBar
 import com.google.android.material.snackbar.Snackbar
@@ -74,10 +76,10 @@ open class StopwatchViewHolder(
         val timer = TIMERS[metric]
         if (timer == null) {
             setText(R.string.metric_stopwatch_start_title)
-            updateStyle(false)
+            updateStyle(false, false)
         } else {
             timer.holder = this
-            updateStyle(true)
+            updateStyle(true, false)
             timer.updateButtonTime()
             this.timer = timer
         }
@@ -154,12 +156,21 @@ open class StopwatchViewHolder(
         stopwatch.text = itemView.resources.getString(id, *formatArgs)
     }
 
-    private fun updateStyle(isRunning: Boolean) {
+    private fun updateStyle(isRunning: Boolean, animate: Boolean = true) {
         // There's a bug pre-L where changing the view state doesn't update the vector drawable.
         // Because of that, calling View#setActivated(isRunning) doesn't update the background
         // color and we end up with unreadable text.
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             stopwatch.isActivated = isRunning
+
+            val drawable = checkNotNull(AnimatedVectorDrawableCompat.create(
+                    itemView.context, if (isRunning) {
+                R.drawable.ic_timer_on_to_off_24dp
+            } else {
+                R.drawable.ic_timer_off_to_on_24dp
+            }))
+            stopwatch.setCompoundDrawablesRelativeWithIntrinsicBounds(drawable, null, null, null)
+            if (animate) drawable.start() else drawable.jumpToCurrentState()
         }
     }
 
@@ -257,7 +268,7 @@ open class StopwatchViewHolder(
                 width = ViewGroup.LayoutParams.WRAP_CONTENT
             }
         }.let {
-            if (viewType == DATA_ITEM) DataHolder(it) else AverageHolder(it)
+            if (viewType == DATA_ITEM) CycleHolder(it) else AverageHolder(it)
         }
 
         override fun onBindViewHolder(holder: DataHolder, position: Int) {
@@ -281,7 +292,7 @@ open class StopwatchViewHolder(
                 if (hasAverageItems && position == 0) AVERAGE_ITEM else DATA_ITEM
     }
 
-    private open class DataHolder(itemView: View) : RecyclerView.ViewHolder(itemView),
+    private abstract class DataHolder(itemView: View) : RecyclerView.ViewHolder(itemView),
             View.OnCreateContextMenuListener, MenuItem.OnMenuItemClickListener {
         protected val title: TextView = itemView.find(android.R.id.text1)
         protected val value: TextView = itemView.find(android.R.id.text2)
@@ -293,19 +304,12 @@ open class StopwatchViewHolder(
         private lateinit var holder: StopwatchViewHolder
 
         private val hasAverage get() = holder.cyclesAdapter.hasAverageItems
-        private val realPosition
+        protected val realPosition
             get() = if (hasAverage) adapterPosition - 1 else adapterPosition
 
-        init {
-            itemView.setOnCreateContextMenuListener(this)
-        }
-
-        fun bind(holder: StopwatchViewHolder, nanoTime: Long) {
+        @CallSuper
+        open fun bind(holder: StopwatchViewHolder, nanoTime: Long) {
             this.holder = holder
-
-            title.text = itemView.context.getString(
-                    R.string.metric_stopwatch_cycle_title, realPosition + 1)
-            value.text = getFormattedTime(nanoTime)
         }
 
         override fun onCreateContextMenu(
@@ -342,10 +346,22 @@ open class StopwatchViewHolder(
         }
     }
 
+    private class CycleHolder(itemView: View) : DataHolder(itemView) {
+        init {
+            itemView.setOnCreateContextMenuListener(this)
+        }
+
+        override fun bind(holder: StopwatchViewHolder, nanoTime: Long) {
+            super.bind(holder, nanoTime)
+            title.text = itemView.context.getString(
+                    R.string.metric_stopwatch_cycle_title, realPosition + 1)
+            value.text = getFormattedTime(nanoTime)
+        }
+    }
+
     private class AverageHolder(itemView: View) : DataHolder(itemView) {
         init {
             title.setText(R.string.metric_stopwatch_cycle_average_title)
-            itemView.setOnCreateContextMenuListener(null)
         }
 
         fun bind(cycles: List<Long>) {
