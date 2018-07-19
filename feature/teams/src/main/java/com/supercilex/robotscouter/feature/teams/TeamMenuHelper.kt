@@ -113,14 +113,13 @@ internal class TeamMenuHelper(
     }
 
     fun onOptionsItemSelected(item: MenuItem): Boolean {
-        val team = selectedTeams.first()
         when (item.itemId) {
             R.id.action_export_teams -> (activity as TeamExporter).export()
             R.id.action_share -> if (TeamSharer.shareTeams(fragment, selectedTeams)) {
                 resetMenu()
             }
             R.id.action_edit_team_details ->
-                TeamDetailsDialog.show(fragment.childFragmentManager, team)
+                TeamDetailsDialog.show(fragment.childFragmentManager, selectedTeams.first())
             R.id.action_delete ->
                 DeleteTeamDialog.show(fragment.childFragmentManager, selectedTeams)
             else -> return false

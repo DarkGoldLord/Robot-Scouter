@@ -12,6 +12,8 @@ import androidx.core.view.isVisible
 import androidx.fragment.app.FragmentManager
 import androidx.lifecycle.ViewModelProviders
 import androidx.lifecycle.get
+import androidx.recyclerview.selection.SelectionTracker
+import androidx.recyclerview.selection.StorageStrategy
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.gms.tasks.TaskCompletionSource
@@ -22,6 +24,7 @@ import com.supercilex.robotscouter.SelectedTeamsRetriever
 import com.supercilex.robotscouter.SignInResolver
 import com.supercilex.robotscouter.TeamListFragmentCompanion
 import com.supercilex.robotscouter.TeamListFragmentCompanion.Companion.TAG
+import com.supercilex.robotscouter.common.FIRESTORE_TEAMS
 import com.supercilex.robotscouter.core.data.TEAM_KEY
 import com.supercilex.robotscouter.core.data.asLiveData
 import com.supercilex.robotscouter.core.data.isSignedIn
@@ -54,6 +57,7 @@ internal class TeamListFragment : FragmentBase(), TeamSelectionListener, Selecte
     private val fab by unsafeLazy { requireActivity().find<FloatingActionButton>(RC.id.fab) }
     private lateinit var adapter: TeamListAdapter
     private lateinit var menuHelper: TeamMenuHelper
+    private lateinit var selectionTracker: SelectionTracker<String>
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -92,12 +96,31 @@ internal class TeamListFragment : FragmentBase(), TeamSelectionListener, Selecte
         adapter = TeamListAdapter(
                 savedInstanceState,
                 this,
-                menuHelper,
                 holder.selectedTeamIdListener
         )
         teamsView.adapter = adapter
         menuHelper.adapter = adapter
         menuHelper.restoreState(savedInstanceState)
+
+        selectionTracker = run {
+            val prevTracker = if (::selectionTracker.isInitialized) selectionTracker else null
+
+            SelectionTracker.Builder<String>(
+                    FIRESTORE_TEAMS,
+                    teamsView,
+                    TeamKeyProvider(adapter),
+                    TeamDetailsLookup(teamsView),
+                    StorageStrategy.createStringStorage()
+            ).build().apply {
+                if (prevTracker == null) {
+                    onRestoreInstanceState(savedInstanceState)
+                } else {
+                    setItemsSelected(prevTracker.selection, true)
+                }
+                addObserver()
+            }
+        }
+        adapter.selectionTracker = selectionTracker
 
         teams.asLiveData().observeNonNull(viewLifecycleOwner) {
             val noTeams = it.isEmpty()
@@ -117,6 +140,7 @@ internal class TeamListFragment : FragmentBase(), TeamSelectionListener, Selecte
         holder.onSaveInstanceState(outState)
         if (::menuHelper.isInitialized) menuHelper.saveState(outState)
         if (::adapter.isInitialized) adapter.onSaveInstanceState(outState)
+        if (::selectionTracker.isInitialized) selectionTracker.onSaveInstanceState(outState)
     }
 
     override fun onCreateOptionsMenu(menu: Menu, inflater: MenuInflater) {

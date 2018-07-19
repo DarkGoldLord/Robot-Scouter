@@ -35,8 +35,7 @@ import com.supercilex.robotscouter.R as RC
 internal class TeamViewHolder(
         override val containerView: View,
         private val fragment: Fragment,
-        private val recyclerView: RecyclerView,
-        private val menuHelper: TeamMenuHelper
+        private val recyclerView: RecyclerView
 ) : RecyclerView.ViewHolder(containerView), LayoutContainer,
         View.OnClickListener, View.OnLongClickListener {
     private val unknownName: String by unsafeLazy {
@@ -75,7 +74,8 @@ internal class TeamViewHolder(
     }
     private val name by unsafeLazy { itemView.find<TextView>(RC.id.name) }
 
-    private lateinit var team: Team
+    lateinit var team: Team
+        private set
     private var isItemSelected: Boolean = false
     private var couldItemBeSelected: Boolean = false
     private var isScouting: Boolean = false
@@ -89,12 +89,12 @@ internal class TeamViewHolder(
     init {
         recyclerView.addOnScrollListener(ScrollListener(this))
 
-        media.setOnClickListener(this)
+//        media.setOnClickListener(this)
         media.setOnLongClickListenerCompat(this)
         newScout.setOnClickListener(this)
         newScout.setOnLongClickListenerCompat(this)
         itemView.setOnClickListener(this)
-        itemView.setOnLongClickListenerCompat(this)
+//        itemView.setOnLongClickListenerCompat(this)
     }
 
     fun bind(
@@ -162,9 +162,9 @@ internal class TeamViewHolder(
     }
 
     private fun onTeamContextMenuRequested() {
-        isItemSelected = !isItemSelected
-        updateItemStatus()
-        menuHelper.onTeamContextMenuRequested(team)
+//        isItemSelected = !isItemSelected
+//        updateItemStatus()
+//        menuHelper.onTeamContextMenuRequested(team)
     }
 
     private class ScrollListener(holder: TeamViewHolder) : RecyclerView.OnScrollListener() {

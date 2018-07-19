@@ -51,6 +51,7 @@ object Config {
             val multidex = "androidx.multidex:multidex:2.0.0"
             val appCompat = "androidx.appcompat:appcompat:$version"
             val fragment = "androidx.fragment:fragment-ktx:$version"
+            val rvSelection = "androidx.recyclerview:recyclerview-selection:$version"
             val material = "com.google.android.material:material:$version"
             val constraint = "androidx.constraintlayout:constraintlayout:1.1.2"
             val cardView = "androidx.cardview:cardview:$version"
