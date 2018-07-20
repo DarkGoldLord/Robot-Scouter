@@ -21,8 +21,8 @@ import com.google.android.material.floatingactionbutton.FloatingActionButton
 import com.google.android.material.snackbar.Snackbar
 import com.supercilex.robotscouter.DrawerToggler
 import com.supercilex.robotscouter.TeamExporter
+import com.supercilex.robotscouter.common.isSingleton
 import com.supercilex.robotscouter.core.data.isFullUser
-import com.supercilex.robotscouter.core.data.isSingleton
 import com.supercilex.robotscouter.core.data.teams
 import com.supercilex.robotscouter.core.model.Team
 import com.supercilex.robotscouter.core.ui.OnBackPressedListener

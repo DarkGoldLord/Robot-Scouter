@@ -13,7 +13,6 @@ import com.firebase.ui.firestore.SnapshotParser
 import com.google.firebase.appindexing.FirebaseAppIndex
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseUser
-import com.google.firebase.firestore.DocumentReference
 import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FieldPath
 import com.google.firebase.firestore.FirebaseFirestore
@@ -28,30 +27,21 @@ import com.supercilex.robotscouter.common.FIRESTORE_TEAM_TYPE
 import com.supercilex.robotscouter.common.FIRESTORE_TEMPLATE_TYPE
 import com.supercilex.robotscouter.common.FIRESTORE_TIMESTAMP
 import com.supercilex.robotscouter.common.FIRESTORE_TYPE
+import com.supercilex.robotscouter.common.isPolynomial
 import com.supercilex.robotscouter.core.CrashLogger
 import com.supercilex.robotscouter.core.RobotScouter
 import com.supercilex.robotscouter.core.await
 import com.supercilex.robotscouter.core.data.client.startUploadMediaJob
 import com.supercilex.robotscouter.core.data.model.fetchLatestData
 import com.supercilex.robotscouter.core.data.model.forceUpdate
-import com.supercilex.robotscouter.core.data.model.getScoutMetricsRef
-import com.supercilex.robotscouter.core.data.model.getScouts
-import com.supercilex.robotscouter.core.data.model.getScoutsRef
-import com.supercilex.robotscouter.core.data.model.isTrashed
 import com.supercilex.robotscouter.core.data.model.isValidTeamUri
-import com.supercilex.robotscouter.core.data.model.ref
 import com.supercilex.robotscouter.core.data.model.teamParser
 import com.supercilex.robotscouter.core.data.model.teamsQueryGenerator
-import com.supercilex.robotscouter.core.data.model.trash
 import com.supercilex.robotscouter.core.data.model.updateTemplateId
 import com.supercilex.robotscouter.core.data.model.userPrefsQueryGenerator
-import com.supercilex.robotscouter.core.isOffline
 import com.supercilex.robotscouter.core.logCrashLog
 import com.supercilex.robotscouter.core.logFailures
-import com.supercilex.robotscouter.core.model.Team
 import kotlinx.coroutines.experimental.async
-import kotlinx.coroutines.experimental.sync.Mutex
-import kotlinx.coroutines.experimental.sync.withLock
 import org.jetbrains.anko.runOnUiThread
 import java.io.File
 import java.lang.reflect.Field
@@ -127,73 +117,11 @@ private val teamUpdater = object : ChangeEventListenerBase {
         }.logFailures()
     }
 }
-private val teamMerger = object : ChangeEventListenerBase {
-    private val mutex = Mutex()
-
-    override fun onChildChanged(
-            type: ChangeEventType,
-            snapshot: DocumentSnapshot,
-            newIndex: Int,
-            oldIndex: Int
-    ) {
-        if (isOffline || !(type == ChangeEventType.ADDED || type == ChangeEventType.CHANGED)) {
-            return
-        }
-
-        val teams = teams.toList()
-        async {
-            val rawTeams = mutableListOf<Team>()
-            for (team in teams) {
-                val rawTeam = team.copy(id = "", timestamp = Date(0))
-
-                if (rawTeams.contains(rawTeam)) {
-                    val existingTeam = teams[rawTeams.indexOf(rawTeam)]
-                    mutex.withLock {
-                        if (existingTeam.timestamp < team.timestamp) {
-                            mergeTeams(existingTeam, team)
-                        } else {
-                            mergeTeams(team, existingTeam)
-                        }
-                    }
-                    break
-                }
-
-                rawTeams += rawTeam
-            }
-        }.logFailures()
-    }
-
-    private suspend fun mergeTeams(existingTeam: Team, duplicate: Team) {
-        try {
-            // Blow up if an error occurs retrieving these teams
-            val ensureNotTrashed: DocumentSnapshot.() -> Unit = {
-                if (checkNotNull(teamParser.parseSnapshot(this).isTrashed)) error("Invalid")
-            }
-            existingTeam.ref.get().await().ensureNotTrashed()
-            duplicate.ref.get().await().ensureNotTrashed()
-        } catch (e: Exception) {
-            return
-        }
-
-        val scouts = duplicate.getScouts()
-        firestoreBatch {
-            for (scout in scouts) {
-                val scoutId = scout.id
-                set(existingTeam.getScoutsRef().document(scoutId), scout)
-                for (metric in scout.metrics) {
-                    set(existingTeam.getScoutMetricsRef(scoutId).document(metric.ref.id), metric)
-                }
-            }
-        }.logFailures(scouts).await()
-        duplicate.trash().await()
-    }
-}
 
 fun initDatabase() {
     FirebaseFirestore.setLoggingEnabled(BuildConfig.DEBUG)
     teams.addChangeEventListener(teamTemplateIdUpdater)
     teams.addChangeEventListener(teamUpdater)
-    teams.addChangeEventListener(teamMerger)
 }
 
 inline fun firestoreBatch(
@@ -202,9 +130,6 @@ inline fun firestoreBatch(
     transaction()
     commit()
 }
-
-inline fun DocumentReference.batch(transaction: WriteBatch.(ref: DocumentReference) -> Unit) =
-        firestoreBatch { transaction(this@batch) }
 
 suspend fun Query.getInBatches(batchSize: Long = 100): List<DocumentSnapshot> {
     var query = orderBy(FieldPath.documentId()).limit(batchSize)

@@ -21,6 +21,7 @@ import com.supercilex.robotscouter.server.utils.auth
 import com.supercilex.robotscouter.server.utils.batch
 import com.supercilex.robotscouter.server.utils.delete
 import com.supercilex.robotscouter.server.utils.deletionQueue
+import com.supercilex.robotscouter.server.utils.duplicateTeams
 import com.supercilex.robotscouter.server.utils.firestore
 import com.supercilex.robotscouter.server.utils.getTeamsQuery
 import com.supercilex.robotscouter.server.utils.getTemplatesQuery
@@ -134,6 +135,7 @@ private suspend fun processDeletion(request: DocumentSnapshot) {
     val deleteTeam: suspend (id: String) -> Unit = { id ->
         val team = teams.doc(id).get().await()
         if (team.exists) team.deleteIfSingleOwner(userId) { deleteTeam(this) }
+        duplicateTeams.doc(userId).update(id, FieldValue.delete()).await()
     }
 
     val deleteScout: suspend (teamId: String, scoutId: String) -> Unit = { teamId, scoutId ->
@@ -218,7 +220,7 @@ private suspend fun deleteUser(user: DocumentSnapshot) {
     user.ref.delete().await()
 }
 
-private suspend fun deleteTeam(team: DocumentSnapshot) {
+suspend fun deleteTeam(team: DocumentSnapshot) {
     console.log("Deleting team: ${team.toTeamString()}")
     team.ref.apply {
         collection(FIRESTORE_SCOUTS).delete {
